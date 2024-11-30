@@ -1,9 +1,11 @@
 package edu.uestc.onecoupon.merchant.admin;
 
+import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
+@MapperScan("edu.uestc.onecoupon.merchant.admin.dao.mapper")
 public class MerchantAdminApplication {
 
     public static void main(String[] args) {

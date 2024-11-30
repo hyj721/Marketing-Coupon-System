@@ -10,9 +10,9 @@ public class CouponTemplateQueryRespDTO {
 
 
     /**
-     * 优惠券id
+     * 优惠券模版id
      */
-    private String id;
+    private String couponTemplateId;
 
     /**
      * 优惠券名称

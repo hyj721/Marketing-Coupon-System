@@ -1,8 +1,6 @@
 package edu.uestc.onecoupon.merchant.admin.dao.entity;
 
-import com.baomidou.mybatisplus.annotation.FieldFill;
-import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,10 +15,16 @@ import java.util.Date;
 @TableName("t_coupon_template")
 public class CouponTemplateDO {
 
+    @TableId(value = "id", type = IdType.AUTO)
     /**
      * id
      */
     private Long id;
+
+    /**
+     * 优惠券模版的id
+     */
+    private Long CouponTemplateId;
 
     /**
      * 店铺编号

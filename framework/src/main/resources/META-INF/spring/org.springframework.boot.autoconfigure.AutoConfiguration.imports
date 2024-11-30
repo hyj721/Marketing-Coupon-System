@@ -1,1 +1,2 @@
 edu.uestc.onecoupon.framework.config.WebAutoConfiguration
+edu.uestc.onecoupon.framework.config.SnowflakeConfiguration
