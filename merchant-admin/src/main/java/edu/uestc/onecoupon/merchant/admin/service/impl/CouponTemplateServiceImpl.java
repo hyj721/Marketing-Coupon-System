@@ -4,6 +4,8 @@ import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.lang.Snowflake;
 import cn.hutool.core.util.RandomUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.mzt.logapi.context.LogRecordContext;
+import com.mzt.logapi.starter.annotation.LogRecord;
 import edu.uestc.onecoupon.merchant.admin.common.constant.MerchantAdminRedisConstant;
 import edu.uestc.onecoupon.merchant.admin.common.context.UserContext;
 import edu.uestc.onecoupon.merchant.admin.common.enums.CouponTemplateStatusEnum;
@@ -35,6 +37,22 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
      *
      * @param requestParam 请求参数
      */
+    @LogRecord(
+            success = """
+                    创建优惠券名称：{{#requestParam.name}}， \
+                    优惠对象：{COMMON_ENUM_PARSE{'DiscountTargetEnum' + '_' + #requestParam.target}}， \
+                    优惠类型：{COMMON_ENUM_PARSE{'DiscountTypeEnum' + '_' + #requestParam.type}}， \
+                    库存数量：{{#requestParam.stock}}， \
+                    优惠商品编码：{{#requestParam.goods}}， \
+                    有效期开始时间：{{#requestParam.validStartTime}}， \
+                    有效期结束时间：{{#requestParam.validEndTime}}， \
+                    领取规则：{{#requestParam.receiveRule}}， \
+                    消耗规则：{{#requestParam.consumeRule}};
+                    """,
+            type = "CouponTemplate", // 操作日志的类型，比如：订单类型、商品类型。
+            bizNo = "{{#bizNo}}", // 日志绑定的业务标识，需要是我们优惠券模板的 ID，但是目前拿不到，放一个占位符。
+            extra = "{{#requestParam.toString()}}" // 日志的额外信息
+    )
     @Override
     public void createCouponTemplate(CouponTemplateSaveReqDTO requestParam) {
         // 1、基于责任链验证请求参数是否正确
@@ -50,6 +68,8 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
         couponTemplateDO.setStatus(CouponTemplateStatusEnum.ACTIVE.getStatus());
         couponTemplateDO.setShopNumber(UserContext.getShopNumber());
         couponTemplateMapper.insert(couponTemplateDO);
+        // 因为模板 ID 是运行中生成的，@LogRecord 默认拿不到，所以我们需要手动设置
+        LogRecordContext.putVariable("bizNo", couponTemplateDO.getId());
 
         // 3、缓存预热，将数据序列为json存储到redis
         CouponTemplateQueryRespDTO respDTO = BeanUtil.toBean(couponTemplateDO, CouponTemplateQueryRespDTO.class);
