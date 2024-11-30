@@ -5,6 +5,7 @@ import cn.hutool.core.lang.Snowflake;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -30,27 +31,41 @@ import edu.uestc.onecoupon.merchant.admin.service.CouponTemplateService;
 import edu.uestc.onecoupon.merchant.admin.service.chain.ILogicChain;
 import edu.uestc.onecoupon.merchant.admin.service.chain.factory.DefaultChainFactory;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.rocketmq.client.producer.SendResult;
+import org.apache.rocketmq.common.message.MessageConst;
+import org.apache.rocketmq.spring.core.RocketMQTemplate;
+import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper, CouponTemplateDO> implements CouponTemplateService {
 
     private final CouponTemplateMapper couponTemplateMapper;
     private final StringRedisTemplate stringRedisTemplate;
     private final DefaultChainFactory defaultChainFactory;
     private final Snowflake snowflake;
+    private final RocketMQTemplate rocketMQTemplate;
+    private final ConfigurableEnvironment configurableEnvironment;
+
 
     /**
      * 创建商家优惠券模板
      *
      * @param requestParam 请求参数
      */
+    @SneakyThrows
     @LogRecord(
             success = """
                     创建优惠券名称：{{#requestParam.name}}， \
@@ -96,6 +111,32 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
         stringRedisTemplate.opsForHash().putAll(couponTemplateCacheKey, actualTargetMap);
         // 4、设置缓存的过期时间
         stringRedisTemplate.expireAt(couponTemplateCacheKey, couponTemplateDO.getValidEndTime());
+
+        // 5、发送延时消息，在优惠券过期的时候，自动结束优惠券
+        String couponTemplateDelayCloseTopic = "one-coupon_merchant-admin-service_coupon-template-delay_topic${unique-name:}";
+
+        couponTemplateDelayCloseTopic = configurableEnvironment.resolvePlaceholders(couponTemplateDelayCloseTopic);
+
+        JSONObject messageBody = new JSONObject();
+        messageBody.put("couponTemplateId", couponTemplateDO.getCouponTemplateId());
+        messageBody.put("shopNumber", UserContext.getShopNumber());
+
+        Long deliverTimeStamp = couponTemplateDO.getValidEndTime().getTime();
+
+        String messageKeys = UUID.randomUUID().toString();
+        Message<JSONObject> message = MessageBuilder
+                .withPayload(messageBody)
+                .setHeader(MessageConst.PROPERTY_KEYS, messageKeys)
+                .build();
+
+        SendResult sendResult;
+        try {
+            sendResult = rocketMQTemplate.syncSendDeliverTimeMills(couponTemplateDelayCloseTopic, message, deliverTimeStamp);
+            log.info("[生产者] 优惠券模板延时关闭 - 发送结果：{}，消息ID：{}，消息Keys：{}", sendResult.getSendStatus(), sendResult.getMsgId(), messageKeys);
+        } catch (Exception ex) {
+            log.error("[生产者] 优惠券模板延时关闭 - 消息发送失败，消息体：{}", couponTemplateDO.getCouponTemplateId(), ex);
+        }
+
     }
 
     @Override
