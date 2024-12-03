@@ -2,9 +2,9 @@ package edu.uestc.onecoupon.merchant.admin.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.lang.Snowflake;
-import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.RandomUtil;
 import com.alibaba.excel.EasyExcel;
+import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -20,11 +20,18 @@ import edu.uestc.onecoupon.merchant.admin.dto.req.CouponTaskCreateReqDTO;
 import edu.uestc.onecoupon.merchant.admin.service.CouponTaskService;
 import edu.uestc.onecoupon.merchant.admin.service.excel.RowCountListener;
 import lombok.RequiredArgsConstructor;
+import org.redisson.api.RBlockingDeque;
+import org.redisson.api.RDelayedQueue;
+import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -34,6 +41,18 @@ public class CouponTaskServiceImpl extends ServiceImpl<CouponTaskMapper, CouponT
     private final CouponTemplateMapper couponTemplateMapper;
     private final CouponTaskMapper couponTaskMapper;
     private final Snowflake snowflake;
+    private final RedissonClient redissonClient;
+    /**
+     * 拒绝策略使用直接丢弃任务.因为在发送任务时如果遇到发送数量为空，会重新进行统计
+     */
+    private final ExecutorService executorService = new ThreadPoolExecutor(
+            Runtime.getRuntime().availableProcessors(),
+            Runtime.getRuntime().availableProcessors() << 1,
+            60,
+            TimeUnit.SECONDS,
+            new SynchronousQueue<>(),
+            new ThreadPoolExecutor.DiscardPolicy()
+    );
 
     /**
      * 商家创建优惠券推送任务
@@ -61,16 +80,32 @@ public class CouponTaskServiceImpl extends ServiceImpl<CouponTaskMapper, CouponT
                         ? CouponTaskStatusEnum.IN_PROGRESS.getStatus()
                         : CouponTaskStatusEnum.PENDING.getStatus()
         );
-
-        // 3、通过easyexcel统计数量
-        RowCountListener rowCountListener = new RowCountListener();
-        EasyExcel.read(requestParam.getFileAddress(), rowCountListener).sheet().doRead();
-
-        // 4、设置行数
-        int rowCount = rowCountListener.getRowCount();
-        couponTaskDO.setSendNum(rowCount);
-
-        // 5、插入任务
+        // 先保存，稍后异步统计行数
         couponTaskMapper.insert(couponTaskDO);
+
+        // 异步统计数据，线程池执行统计任务
+        JSONObject delayJsonObject = JSONObject
+                .of("fileAddress", requestParam.getFileAddress(), "couponTaskId", couponTaskDO.getId());
+        executorService.execute(() -> refreshCouponTaskSendNum(delayJsonObject));
+        // 假设刚把消息提交到线程池，突然应用宕机了，我们通过延迟队列进行兜底 Refresh
+        RBlockingDeque<Object> blockingDeque = redissonClient.getBlockingDeque("COUPON_TASK_SEND_NUM_DELAY_QUEUE");
+        RDelayedQueue<Object> delayedQueue = redissonClient.getDelayedQueue(blockingDeque);
+        // 这里延迟时间设置 20 秒，原因是我们笃定上面线程池 20 秒之内就能结束任务
+        delayedQueue.offer(delayJsonObject, 20, TimeUnit.SECONDS);
+
+
+    }
+
+    private void refreshCouponTaskSendNum(JSONObject jsonObject) {
+        RowCountListener listener = new RowCountListener();
+        EasyExcel.read(jsonObject.getString("fileAddress"), listener).sheet().doRead();
+        int totalRows = listener.getRowCount();
+
+        // 刷新优惠券推送记录中发送行数
+        CouponTaskDO updateCouponTaskDO = CouponTaskDO.builder()
+                .id(jsonObject.getLong("couponTaskId"))
+                .sendNum(totalRows)
+                .build();
+        couponTaskMapper.updateById(updateCouponTaskDO);
     }
 }
