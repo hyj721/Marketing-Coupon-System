@@ -23,11 +23,6 @@ public class CouponTaskDO {
     private Long id;
 
     /**
-     * 优惠券任务id
-     */
-    private Long couponTaskId;
-
-    /**
      * 店铺编号
      */
     private Long shopNumber;

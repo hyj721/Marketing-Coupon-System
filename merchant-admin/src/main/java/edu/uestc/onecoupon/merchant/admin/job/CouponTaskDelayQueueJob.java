@@ -43,7 +43,7 @@ public class CouponTaskDelayQueueJob {
     private void processQueueElement(JSONObject delayJsonObject) {
         try {
             log.info("开始处理延时队列任务, element: {}", delayJsonObject);
-            CouponTaskDO couponTaskDO = couponTaskMapper.selectById(delayJsonObject.getLong("couponTaskId"));
+            CouponTaskDO couponTaskDO = couponTaskMapper.selectById(delayJsonObject.getLong("id"));
             if (couponTaskDO.getSendNum() == null) {
                 refreshCouponTaskSendNum(delayJsonObject);
             }
@@ -60,7 +60,7 @@ public class CouponTaskDelayQueueJob {
 
         // 刷新优惠券推送记录中发送行数
         CouponTaskDO updateCouponTaskDO = CouponTaskDO.builder()
-                .id(jsonObject.getLong("couponTaskId"))
+                .id(jsonObject.getLong("id"))
                 .sendNum(totalRows)
                 .build();
         couponTaskMapper.updateById(updateCouponTaskDO);

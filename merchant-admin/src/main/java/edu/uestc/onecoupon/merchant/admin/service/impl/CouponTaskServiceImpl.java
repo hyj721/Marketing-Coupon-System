@@ -71,7 +71,6 @@ public class CouponTaskServiceImpl extends ServiceImpl<CouponTaskMapper, CouponT
         }
         // 2、构建优惠券推送任务数据库持久层实体
         CouponTaskDO couponTaskDO = BeanUtil.copyProperties(requestParam, CouponTaskDO.class);
-        couponTaskDO.setCouponTaskId(Long.parseLong(new SimpleDateFormat("yyyyMMddHHmmss").format(new Date()) + RandomUtil.randomNumbers(2)));
         couponTaskDO.setBatchId(snowflake.nextId());
         couponTaskDO.setOperatorId(Long.parseLong(UserContext.getUserId()));
         couponTaskDO.setShopNumber(UserContext.getShopNumber());
@@ -85,15 +84,13 @@ public class CouponTaskServiceImpl extends ServiceImpl<CouponTaskMapper, CouponT
 
         // 异步统计数据，线程池执行统计任务
         JSONObject delayJsonObject = JSONObject
-                .of("fileAddress", requestParam.getFileAddress(), "couponTaskId", couponTaskDO.getId());
+                .of("fileAddress", requestParam.getFileAddress(), "id", couponTaskDO.getId());
         executorService.execute(() -> refreshCouponTaskSendNum(delayJsonObject));
         // 假设刚把消息提交到线程池，突然应用宕机了，我们通过延迟队列进行兜底 Refresh
         RBlockingDeque<Object> blockingDeque = redissonClient.getBlockingDeque("COUPON_TASK_SEND_NUM_DELAY_QUEUE");
         RDelayedQueue<Object> delayedQueue = redissonClient.getDelayedQueue(blockingDeque);
         // 这里延迟时间设置 20 秒，原因是我们笃定上面线程池 20 秒之内就能结束任务
         delayedQueue.offer(delayJsonObject, 20, TimeUnit.SECONDS);
-
-
     }
 
     private void refreshCouponTaskSendNum(JSONObject jsonObject) {
@@ -103,7 +100,7 @@ public class CouponTaskServiceImpl extends ServiceImpl<CouponTaskMapper, CouponT
 
         // 刷新优惠券推送记录中发送行数
         CouponTaskDO updateCouponTaskDO = CouponTaskDO.builder()
-                .id(jsonObject.getLong("couponTaskId"))
+                .id(jsonObject.getLong("id"))
                 .sendNum(totalRows)
                 .build();
         couponTaskMapper.updateById(updateCouponTaskDO);
