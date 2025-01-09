@@ -35,7 +35,6 @@ public class CouponTemplateTest {
         consumeRule.put("explanationOfUnmetC 3onditions", "不满足使用条件说明"); // 不满足使用条件说明
         consumeRule.put("validityPeriod", 48); // 自领取优惠券后有效时间，单位小时
         CouponTemplateDO couponTemplateDO = CouponTemplateDO.builder()
-                .CouponTemplateId(snowflake.nextId())
                 .shopNumber(1810714735922956666L) // 店铺编号
                 .name("商品立减券") // 优惠券名称
                 .source(0) // 优惠券来源 0：店铺券 1：平台券

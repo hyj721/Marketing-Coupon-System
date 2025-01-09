@@ -22,11 +22,6 @@ public class CouponTemplateDO {
     private Long id;
 
     /**
-     * 优惠券模版的id
-     */
-    private Long CouponTemplateId;
-
-    /**
      * 店铺编号
      */
     private Long shopNumber;

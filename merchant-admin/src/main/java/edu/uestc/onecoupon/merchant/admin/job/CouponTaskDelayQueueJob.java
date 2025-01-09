@@ -42,9 +42,9 @@ public class CouponTaskDelayQueueJob {
 
     private void processQueueElement(JSONObject delayJsonObject) {
         try {
-            log.info("开始处理延时队列任务, element: {}", delayJsonObject);
             CouponTaskDO couponTaskDO = couponTaskMapper.selectById(delayJsonObject.getLong("id"));
             if (couponTaskDO.getSendNum() == null) {
+                log.info("优惠券推送任务发送行数为空，开始补偿,id:{}", delayJsonObject.getLong("id"));
                 refreshCouponTaskSendNum(delayJsonObject);
             }
 

@@ -21,7 +21,6 @@ import java.util.Optional;
 public class DBLogRecordServiceImpl implements ILogRecordService {
 
     private final CouponTemplateLogMapper couponTemplateLogMapper;
-    private final Snowflake snowflake;
 
     @Override
     public void record(LogRecord logRecord) {
@@ -29,7 +28,6 @@ public class DBLogRecordServiceImpl implements ILogRecordService {
             switch (logRecord.getType()) {
                 case "CouponTemplate": {
                     CouponTemplateLogDO couponTemplateLogDO = CouponTemplateLogDO.builder()
-                            .couponTemplateLogId(snowflake.nextId())
                             .couponTemplateId(logRecord.getBizNo())
                             .shopNumber(UserContext.getShopNumber())
                             .operatorId(UserContext.getUserId())

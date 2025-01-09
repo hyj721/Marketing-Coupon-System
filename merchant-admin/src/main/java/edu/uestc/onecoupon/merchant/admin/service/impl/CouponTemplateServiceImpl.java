@@ -1,7 +1,6 @@
 package edu.uestc.onecoupon.merchant.admin.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.lang.Snowflake;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
@@ -55,7 +54,6 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
     private final CouponTemplateMapper couponTemplateMapper;
     private final StringRedisTemplate stringRedisTemplate;
     private final DefaultChainFactory defaultChainFactory;
-    private final Snowflake snowflake;
     private final RocketMQTemplate rocketMQTemplate;
     private final ConfigurableEnvironment configurableEnvironment;
 
@@ -93,12 +91,11 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
 
         // 2、保存优惠券模板到数据库
         CouponTemplateDO couponTemplateDO = BeanUtil.toBean(requestParam, CouponTemplateDO.class);
-        couponTemplateDO.setCouponTemplateId(snowflake.nextId());
         couponTemplateDO.setStatus(CouponTemplateStatusEnum.ACTIVE.getStatus());
         couponTemplateDO.setShopNumber(UserContext.getShopNumber());
         couponTemplateMapper.insert(couponTemplateDO);
         // 因为模板 ID 是运行中生成的，@LogRecord 默认拿不到，所以我们需要手动设置
-        LogRecordContext.putVariable("bizNo", couponTemplateDO.getCouponTemplateId());
+        LogRecordContext.putVariable("bizNo", couponTemplateDO.getId());
 
         // 3、缓存预热，将数据序列为json存储到redis
         CouponTemplateQueryRespDTO respDTO = BeanUtil.toBean(couponTemplateDO, CouponTemplateQueryRespDTO.class);
@@ -107,7 +104,7 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
         for (Map.Entry<String, Object> entry : cacheTargetMap.entrySet()) {
             actualTargetMap.put(entry.getKey(), entry.getValue() != null ? entry.getValue().toString() : "");
         }
-        String couponTemplateCacheKey = String.format(MerchantAdminRedisConstant.COUPON_TEMPLATE_KEY, couponTemplateDO.getCouponTemplateId());
+        String couponTemplateCacheKey = String.format(MerchantAdminRedisConstant.COUPON_TEMPLATE_KEY, couponTemplateDO.getId());
         stringRedisTemplate.opsForHash().putAll(couponTemplateCacheKey, actualTargetMap);
         // 4、设置缓存的过期时间
         stringRedisTemplate.expireAt(couponTemplateCacheKey, couponTemplateDO.getValidEndTime());
@@ -118,10 +115,10 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
         couponTemplateDelayCloseTopic = configurableEnvironment.resolvePlaceholders(couponTemplateDelayCloseTopic);
 
         JSONObject messageBody = new JSONObject();
-        messageBody.put("couponTemplateId", couponTemplateDO.getCouponTemplateId());
+        messageBody.put("id", couponTemplateDO.getId());
         messageBody.put("shopNumber", UserContext.getShopNumber());
 
-        Long deliverTimeStamp = couponTemplateDO.getValidEndTime().getTime();
+        long deliverTimeStamp = couponTemplateDO.getValidEndTime().getTime();
 
         String messageKeys = UUID.randomUUID().toString();
         Message<JSONObject> message = MessageBuilder
@@ -134,7 +131,7 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
             sendResult = rocketMQTemplate.syncSendDeliverTimeMills(couponTemplateDelayCloseTopic, message, deliverTimeStamp);
             log.info("[生产者] 优惠券模板延时关闭 - 发送结果：{}，消息ID：{}，消息Keys：{}", sendResult.getSendStatus(), sendResult.getMsgId(), messageKeys);
         } catch (Exception ex) {
-            log.error("[生产者] 优惠券模板延时关闭 - 消息发送失败，消息体：{}", couponTemplateDO.getCouponTemplateId(), ex);
+            log.error("[生产者] 优惠券模板延时关闭 - 消息发送失败，消息体：{}", couponTemplateDO.getId(), ex);
         }
 
     }
@@ -167,7 +164,7 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
     public CouponTemplateQueryRespDTO findCouponTemplateById(Long couponTemplateId) {
         LambdaQueryWrapper<CouponTemplateDO> queryWrapper = Wrappers.lambdaQuery(CouponTemplateDO.class)
                 .eq(CouponTemplateDO::getShopNumber, UserContext.getShopNumber())
-                .eq(CouponTemplateDO::getCouponTemplateId, couponTemplateId);
+                .eq(CouponTemplateDO::getId, couponTemplateId);
 
         CouponTemplateDO couponTemplateDO = couponTemplateMapper.selectOne(queryWrapper);
         return BeanUtil.toBean(couponTemplateDO, CouponTemplateQueryRespDTO.class);
@@ -183,7 +180,7 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
         // 验证是否存在数据横向越权
         LambdaQueryWrapper<CouponTemplateDO> queryWrapper = Wrappers.lambdaQuery(CouponTemplateDO.class)
                 .eq(CouponTemplateDO::getShopNumber, UserContext.getShopNumber())
-                .eq(CouponTemplateDO::getCouponTemplateId, couponTemplateId);
+                .eq(CouponTemplateDO::getId, couponTemplateId);
         CouponTemplateDO couponTemplateDO = couponTemplateMapper.selectOne(queryWrapper);
         if (couponTemplateDO == null) {
             throw new ClientException("优惠券模板异常，请检查操作是否正确...");
@@ -202,7 +199,7 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
                 .status(CouponTemplateStatusEnum.ENDED.getStatus())
                 .build();
         Wrapper<CouponTemplateDO> updateWrapper = Wrappers.lambdaUpdate(CouponTemplateDO.class)
-                .eq(CouponTemplateDO::getCouponTemplateId, couponTemplateDO.getCouponTemplateId())
+                .eq(CouponTemplateDO::getId, couponTemplateDO.getId())
                 .eq(CouponTemplateDO::getShopNumber, UserContext.getShopNumber());
         couponTemplateMapper.update(updateCouponTemplateDO, updateWrapper);
 
@@ -221,7 +218,7 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
         // 验证是否存在数据横向越权
         LambdaQueryWrapper<CouponTemplateDO> queryWrapper = Wrappers.lambdaQuery(CouponTemplateDO.class)
                 .eq(CouponTemplateDO::getShopNumber, UserContext.getShopNumber())
-                .eq(CouponTemplateDO::getCouponTemplateId, requestParam.getCouponTemplateId());
+                .eq(CouponTemplateDO::getId, requestParam.getCouponTemplateId());
         CouponTemplateDO couponTemplateDO = couponTemplateMapper.selectOne(queryWrapper);
         if (couponTemplateDO == null) {
             throw new ClientException("优惠券模板异常，请检查操作是否正确...");

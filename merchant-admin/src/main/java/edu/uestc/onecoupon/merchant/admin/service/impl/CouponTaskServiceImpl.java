@@ -71,7 +71,7 @@ public class CouponTaskServiceImpl extends ServiceImpl<CouponTaskMapper, CouponT
     public void createCouponTask(CouponTaskCreateReqDTO requestParam) {
         // 1、查询推送任务待推送的优惠券
         LambdaQueryWrapper<CouponTemplateDO> lambdaQueryWrapper = Wrappers.lambdaQuery(CouponTemplateDO.class)
-                .eq(CouponTemplateDO::getCouponTemplateId, requestParam.getCouponTemplateId())
+                .eq(CouponTemplateDO::getId, requestParam.getCouponTemplateId())
                 .eq(CouponTemplateDO::getShopNumber, UserContext.getShopNumber());
         CouponTemplateDO couponTemplateDO = couponTemplateMapper.selectOne(lambdaQueryWrapper);
         if (couponTemplateDO == null) {

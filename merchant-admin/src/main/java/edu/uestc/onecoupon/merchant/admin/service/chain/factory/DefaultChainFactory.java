@@ -15,7 +15,7 @@ public class DefaultChainFactory {
     private final Map<String, ILogicChain> logicChainGroup;
 
     public ILogicChain openLogicChain() {
-        String[] defaultRuleModelsList = {"rule_base", "rule_not_null", "rule_verify"};
+        String[] defaultRuleModelsList = {LogicModel.RULE_BASE.code, LogicModel.RULE_NOT_NULL.code, LogicModel.RULE_VERIFY.code};
         ILogicChain logicChain = logicChainGroup.get(defaultRuleModelsList[0]);
         ILogicChain current = logicChain;
         for (int i = 1; i < defaultRuleModelsList.length; i++) {

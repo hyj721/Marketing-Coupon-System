@@ -32,7 +32,7 @@ public class CouponTaskFixedTimeSendJob {
 
     private static final int MAX_LIMIT = 100;
 
-    @Scheduled(cron = "0/5 * * * * ?")
+    @Scheduled(cron = "0 */5 * * * *")
     public void execute() throws Exception {
         long initId = 0;
         Date now = new Date();

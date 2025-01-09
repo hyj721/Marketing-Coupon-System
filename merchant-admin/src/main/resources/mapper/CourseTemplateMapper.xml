@@ -9,6 +9,6 @@
         UPDATE t_coupon_template
         SET stock = stock + #{number}
         WHERE shop_number = #{shopNumber}
-          AND coupon_template_id = #{couponTemplateId}
+          AND id = #{couponTemplateId}
     </update>
 </mapper>

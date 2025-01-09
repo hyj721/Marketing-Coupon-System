@@ -21,10 +21,6 @@ public class CouponTemplateLogDO {
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    /**
-     * 优惠券模版日志id
-     */
-    private Long couponTemplateLogId;
 
     /**
      * 店铺编号
