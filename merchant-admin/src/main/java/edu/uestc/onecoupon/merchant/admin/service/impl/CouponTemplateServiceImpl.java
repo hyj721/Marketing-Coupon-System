@@ -104,7 +104,7 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
         for (Map.Entry<String, Object> entry : cacheTargetMap.entrySet()) {
             actualTargetMap.put(entry.getKey(), entry.getValue() != null ? entry.getValue().toString() : "");
         }
-        String couponTemplateCacheKey = String.format(MerchantAdminRedisConstant.COUPON_TEMPLATE_KEY, couponTemplateDO.getId());
+        String couponTemplateCacheKey = String.format(MerchantAdminRedisConstant.COUPON_TEMPLATE_KEY, UserContext.getShopNumber(), couponTemplateDO.getId());
         stringRedisTemplate.opsForHash().putAll(couponTemplateCacheKey, actualTargetMap);
         // 4、设置缓存的过期时间
         stringRedisTemplate.expireAt(couponTemplateCacheKey, couponTemplateDO.getValidEndTime());
@@ -204,7 +204,7 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
         couponTemplateMapper.update(updateCouponTemplateDO, updateWrapper);
 
         // 修改优惠券模板缓存状态为结束状态
-        String couponTemplateCacheKey = String.format(MerchantAdminRedisConstant.COUPON_TEMPLATE_KEY, couponTemplateId);
+        String couponTemplateCacheKey = String.format(MerchantAdminRedisConstant.COUPON_TEMPLATE_KEY, UserContext.getShopNumber(), couponTemplateId);
         stringRedisTemplate.opsForHash().put(couponTemplateCacheKey, "status", String.valueOf(CouponTemplateStatusEnum.ENDED.getStatus()));
     }
 
@@ -239,7 +239,7 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
         }
 
         // 增加优惠券模板缓存库存发行量
-        String couponTemplateCacheKey = String.format(MerchantAdminRedisConstant.COUPON_TEMPLATE_KEY, requestParam.getCouponTemplateId());
+        String couponTemplateCacheKey = String.format(MerchantAdminRedisConstant.COUPON_TEMPLATE_KEY, UserContext.getShopNumber(), requestParam.getCouponTemplateId());
         stringRedisTemplate.opsForHash().increment(couponTemplateCacheKey, "stock", requestParam.getNumber());
     }
 }
